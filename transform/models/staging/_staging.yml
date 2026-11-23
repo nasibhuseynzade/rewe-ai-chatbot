@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: stg_prices
+    description: >
+      One row per source row (product x category x day x region), typed.
+      No deduplication yet.
+    columns:
+      - name: snapshot_date
+        data_tests: [not_null]
+      - name: region
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["bavaria", "schleswig-holstein"]
+              config:
+                severity: warn
+      - name: gtin
+        description: EAN as text; 11/12-digit codes left-padded to GTIN-13.
+        data_tests: [not_null]
+      - name: price
+        data_tests: [not_null]
+      - name: category
+        data_tests: [not_null]

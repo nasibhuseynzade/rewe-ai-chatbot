@@ -1,0 +1,40 @@
+name: rewe
+version: "0.1.0"
+config-version: 2
+profile: rewe
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "logs"]
+
+# Run dbt from the project root (paths below are relative to it):
+#   uv run dbt build --project-dir transform --profiles-dir transform
+vars:
+  bronze_glob: "data/bronze/prices/*.parquet"
+
+  # Cross-cutting / promotional categories. A product is listed here *in addition*
+  # to its real department, so they are never used as a product's primary category.
+  thematic_categories: ["Monats-Highlights", "Grillsaison", "Regional", "Bewusste Ernährung"]
+
+  # A product may be missing from a few snapshots although it was still sold
+  # (the source scrapes page by page). Gaps up to this many snapshots do not
+  # break a price interval.
+  max_gap_snapshots: 3
+
+  # Allowed relative difference between our computed unit price and the one
+  # printed in the source, used by the parser test.
+  unit_price_tolerance: 0.03
+
+models:
+  rewe:
+    staging:
+      +schema: staging
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: table
+    gold:
+      +schema: gold
+      +materialized: table

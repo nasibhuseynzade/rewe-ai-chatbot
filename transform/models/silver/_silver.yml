@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: silver_product_daily
+    description: One row per (snapshot_date, region, gtin). Category repeats collapsed into a list.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [snapshot_date, region, gtin]
+    columns:
+      - name: distinct_prices
+        description: Number of different prices among a product's category repeats. Must be 1.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1]
+                quote: false
+
+  - name: silver_grammage
+    description: Parsed pack size and unit price for every distinct grammage string.
+    columns:
+      - name: grammage
+        data_tests: [unique, not_null]

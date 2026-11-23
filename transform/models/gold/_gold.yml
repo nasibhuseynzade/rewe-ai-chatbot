@@ -1,0 +1,157 @@
+version: 2
+
+# These descriptions double as the schema documentation the assistant reads
+# before writing SQL, so they say what a column means *and* how to use it.
+
+models:
+  - name: snapshots
+    description: >
+      Which daily snapshots exist per region. Use it to tell "no data that day"
+      apart from "product not listed that day".
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [snapshot_date, region]
+    columns:
+      - name: snapshot_date
+        description: Day the prices were collected.
+      - name: region
+        description: "'bavaria' or 'schleswig-holstein'."
+      - name: snapshot_seq
+        description: 1, 2, 3, ... per region in date order (missing days are skipped, not numbered).
+      - name: products
+        description: Distinct products listed that day in that region.
+      - name: source_rows
+        description: Raw rows before collapsing category repeats.
+      - name: products_on_sale
+        description: Products flagged as on sale that day.
+
+  - name: dim_product
+    description: >
+      One row per product, described by its most recent observation.
+      Join to fct_price_interval and product_category on gtin.
+    columns:
+      - name: gtin
+        description: Product barcode (GTIN-13, or 8 digits for EAN-8 / in-store codes). Primary key.
+        data_tests: [unique, not_null]
+      - name: ean_raw
+        description: Barcode exactly as in the source (leading zeros may be missing there).
+      - name: name
+        description: Latest product name (German), usually includes brand and size.
+        data_tests: [not_null]
+      - name: brand
+        description: Latest known brand. NULL for unbranded products such as loose fruit.
+      - name: primary_category
+        description: >
+          The product's main department. Use this for "per category" totals; it
+          counts each product once. Thematic lists (Monats-Highlights, Regional, ...)
+          are only used if a product has no other category.
+      - name: pack_size
+        description: Pack size text, e.g. '250g', '6x0,33l', '1 Stück'.
+      - name: pack_count
+        description: Number of items in a multipack (6 for '6x0,33l'); 1 otherwise.
+      - name: measure_amount
+        description: Total content in measure_unit (1.98 for '6x0,33l'). NULL for plain piece counts.
+      - name: measure_unit
+        description: "'kg', 'l' or 'm'. Unit prices are per one of these."
+      - name: piece_count
+        description: Number of pieces for products sold by piece ('3x48 Stück' -> 144).
+      - name: is_weight_approximate
+        description: True for items like '1 Stück ca. 300 g' whose weight is approximate.
+      - name: first_seen
+        description: First snapshot date the product appeared in any region.
+      - name: last_seen
+        description: Last snapshot date the product appeared in any region.
+      - name: regions
+        description: List of regions the product was ever listed in.
+      - name: name_variants
+        description: How many different names the product had (renames, typo fixes).
+      - name: pack_size_variants
+        description: How many different pack sizes the product had. >1 can indicate shrinkflation.
+      - name: is_valid_gtin
+        description: Barcode passes the GS1 check digit.
+      - name: is_store_code
+        description: In-store code (restricted circulation EAN-8), e.g. loose produce.
+
+  - name: product_category
+    description: >
+      Which categories a product was listed in, per region, and when.
+      Many-to-many: one product can be in several categories at once. Do not sum
+      products over categories; use dim_product.primary_category for totals.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [gtin, region, category]
+    columns:
+      - name: gtin
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: gtin
+      - name: category
+        description: Category name as on the REWE website (German).
+      - name: is_thematic
+        description: True for promotional / cross-cutting lists (Monats-Highlights, Grillsaison, Regional, Bewusste Ernährung).
+      - name: first_seen
+        description: First day the product was listed in this category and region.
+      - name: last_seen
+        description: Last day the product was listed in this category and region.
+      - name: snapshots_seen
+        description: Number of snapshots it was listed in this category.
+
+  - name: fct_price_interval
+    description: >
+      Price history. One row per period in which a product had the same price,
+      sale flag and pack size in a region. Price on date X:
+      WHERE X BETWEEN valid_from AND valid_to. Short gaps (a few missing
+      snapshots) are bridged; longer absences start a new interval.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [gtin, region, interval_no]
+    columns:
+      - name: gtin
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: gtin
+      - name: region
+        description: "'bavaria' or 'schleswig-holstein'."
+      - name: interval_no
+        description: 1, 2, 3, ... per product and region in time order.
+      - name: valid_from
+        description: First snapshot date of the interval (inclusive).
+        data_tests: [not_null]
+      - name: valid_to
+        description: Last snapshot date of the interval (inclusive).
+        data_tests: [not_null]
+      - name: price
+        description: Shelf price in EUR during the interval (the promotional price if on_sale).
+        data_tests: [not_null]
+      - name: on_sale
+        description: True if the product was marked as on sale.
+      - name: regular_price
+        description: Price outside promotions. Equals price when on_sale is false. Use it for inflation analysis.
+      - name: discount_pct
+        description: For on_sale intervals, 1 - price / regular_price (0.20 = 20% off). NULL otherwise.
+      - name: pack_size
+        description: Pack size text during the interval.
+      - name: grammage
+        description: Original grammage text including the source's unit price.
+      - name: measure_amount
+        description: Total content in measure_unit.
+      - name: measure_unit
+        description: "'kg', 'l' or 'm'."
+      - name: unit_price
+        description: price / measure_amount, i.e. EUR per kg, l or m. Use it to compare products of different sizes.
+      - name: price_per_piece
+        description: price / piece_count for products sold by piece.
+      - name: observed_snapshots
+        description: Snapshots in which the product was actually seen during the interval.
+      - name: spanned_snapshots
+        description: Snapshots between valid_from and valid_to; larger than observed_snapshots if gaps were bridged.
+      - name: is_current
+        description: True if the interval reaches the region's last snapshot (the latest known price).

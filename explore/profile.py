@@ -102,6 +102,56 @@ CHECKS: list[tuple[str, str, str]] = [
         """,
     ),
     (
+        "Pagination fingerprint",
+        "Rows per (file, category). If nearly all are multiples of 40, the source was "
+        "scraped 40 products per page, and the last partial page of a category may be missing.",
+        """
+        WITH c AS (SELECT region, snapshot_date, category, count(*) AS n FROM bronze GROUP BY ALL)
+        SELECT region,
+               count(*)                                         AS category_files,
+               count(*) FILTER (n % 40 = 0)                     AS multiple_of_40,
+               round(100.0 * count(*) FILTER (n % 40 = 0) / count(*), 1) AS pct,
+               min(n) AS min_rows, max(n) AS max_rows
+        FROM c GROUP BY region ORDER BY region
+        """,
+    ),
+    (
+        "Duplicates inside the same category",
+        "Same EAN twice in one category on one day: another sign of page overlap while scraping.",
+        """
+        WITH d AS (SELECT region, snapshot_date, category, ean, count(*) AS n
+                   FROM bronze GROUP BY ALL HAVING count(*) > 1)
+        SELECT count(*) AS groups, sum(n - 1) AS extra_rows,
+               count(DISTINCT category) AS categories_affected,
+               any_value(category) AS example_category
+        FROM d
+        """,
+    ),
+    (
+        "Gaps between appearances",
+        "For each product and region: how many snapshots pass between two appearances. "
+        "1 = seen on consecutive snapshots. Short gaps followed by a return are probably "
+        "scraping misses; this sets max_gap_snapshots in dbt_project.yml.",
+        """
+        WITH seq AS (
+            SELECT region, snapshot_date,
+                   dense_rank() OVER (PARTITION BY region ORDER BY snapshot_date) AS s
+            FROM (SELECT DISTINCT region, snapshot_date FROM bronze)
+        ),
+        seen AS (
+            SELECT DISTINCT b.region, b.ean, q.s
+            FROM bronze b JOIN seq q USING (region, snapshot_date)
+        ),
+        gaps AS (
+            SELECT s - lag(s) OVER (PARTITION BY region, ean ORDER BY s) AS gap FROM seen
+        )
+        SELECT CASE WHEN gap <= 5 THEN gap::VARCHAR ELSE '6+' END AS snapshots_between,
+               count(*) AS occurrences,
+               round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS pct
+        FROM gaps WHERE gap IS NOT NULL GROUP BY ALL ORDER BY snapshots_between
+        """,
+    ),
+    (
         "EAN shape",
         "EANs must be stored as text. Length 8 and 13 are normal (EAN-8 / EAN-13); "
         "anything else, or non-digits, needs a look.",
