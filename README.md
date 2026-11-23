@@ -48,9 +48,14 @@ From a two-week sample (30 files, ~692k rows):
 - **28 grammage formats**, from `250g (1 kg = 3,16 €)` to `4x6x0,33l` and
   `1 Stück ca. 300 g`. The parser is validated against the unit price printed in
   the source.
-- **Row counts per category are almost always multiples of 40**, which suggests
-  the source scraped 40 products per page. A product missing for a day is
-  therefore not necessarily delisted; short gaps are bridged.
+- **The source was scraped 40 products per page.** 99.5% of row counts per
+  category and day are multiples of 40, and 268 times in two weeks a product
+  appeared twice in the same category (overlapping pages). So a product missing
+  for a day is not necessarily delisted: 98.6% of reappearances are on the next
+  snapshot, and gaps of up to 3 missed snapshots are bridged. Product counts
+  per category should be read as approximate.
+- **About 27% of days have no file** (970 files for 665 days × 2 regions).
+  Consecutive *snapshots*, not calendar days, define continuity.
 
 ## Gold tables
 
@@ -85,14 +90,21 @@ uv run dbt build --project-dir transform --profiles-dir transform
 Run all commands from the project root.
 
 Once the sample looks right, `uv run python ingest/download.py --all` fetches
-everything (~1,200 files, ~4 GB uncompressed). The script skips files already in
+everything (970 files, Nov 2023 – Sep 2025). The script skips files already in
 bronze, so it can be stopped and restarted at any time.
+
+Ad-hoc questions go through the query helper (read-only, prints Markdown):
+
+```bash
+uv run python explore/query.py "select region, count(*) from gold.snapshots group by all"
+uv run python explore/query.py explore/sql/unit_price_mismatches.sql
+```
 
 ## Project layout
 
 ```
 ingest/      download + bronze conversion
-explore/     profiling queries and reports
+explore/     profiling, query helper, analysis SQL (explore/sql)
 transform/   dbt project (staging, silver, gold + tests)
 app/         API, dashboard, assistant tools     – later
 eval/        assistant evaluation questions      – later
