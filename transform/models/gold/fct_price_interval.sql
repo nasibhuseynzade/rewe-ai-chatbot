@@ -67,7 +67,8 @@ intervals as (
         min(snapshot_date)                        as valid_from,
         max(snapshot_date)                        as valid_to,
         count(*)                                  as observed_snapshots,
-        max(snapshot_seq) - min(snapshot_seq) + 1 as spanned_snapshots
+        max(snapshot_seq) - min(snapshot_seq) + 1 as spanned_snapshots,
+        max(snapshot_seq)                         as last_seq
     from numbered
     group by gtin, region, interval_no
 ),
@@ -89,7 +90,7 @@ with_regular as (
 ),
 
 region_last as (
-    select region, max(snapshot_date) as last_snapshot
+    select region, max(snapshot_seq) as last_seq
     from {{ ref('snapshots') }}
     group by region
 )
@@ -117,7 +118,9 @@ select
          then round(i.price / g.piece_count, 4) end                 as price_per_piece,
     i.observed_snapshots,
     i.spanned_snapshots,
-    i.valid_to = r.last_snapshot                                    as is_current
+    -- seen in one of the region's last (max_gap_snapshots + 1) snapshots; the
+    -- same tolerance as gap bridging, so a partial last scrape doesn't matter
+    i.last_seq >= r.last_seq - {{ var('max_gap_snapshots') }}       as is_current
 from with_regular as i
 join region_last as r using (region)
 left join {{ ref('silver_grammage') }} as g on g.grammage = i.grammage

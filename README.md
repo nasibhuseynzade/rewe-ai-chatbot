@@ -35,18 +35,21 @@ Design notes:
 
 ## What the data profile showed
 
-From a two-week sample (30 files, ~692k rows):
+Full data: 970 files, 20.2M rows, 57,320 products (28,097 sold in both regions).
 
-- **17% of rows are repeats**: a product is listed once per category, and
+- **14% of rows are repeats**: a product is listed once per category, and
   thematic lists (Monats-Highlights, Regional, Grillsaison, Bewusste Ernährung)
-  overlap with departments. Price never differs between repeats, so they collapse
-  into one row per product and day; categories become a many-to-many table.
+  overlap with departments. Repeats collapse into one row per product and day;
+  categories become a many-to-many table. In 864 of 17.4M product-days the
+  repeats disagree on the price (changed mid-scrape); the lower price is kept
+  and the row flagged.
 - **Leading zeros were lost upstream**: 11- and 12-digit EANs pass the GS1 check
-  digit once left-padded to 13 digits.
-- **85% of products kept one price** over two weeks, so storing intervals instead of
-  daily rows compresses the fact table by an order of magnitude.
-- **28 grammage formats**, from `250g (1 kg = 3,16 €)` to `4x6x0,33l` and
-  `1 Stück ca. 300 g`. Every parsed size is cross-checked against two
+  digit once left-padded to 13 digits. 440 rows with `NA` as barcode and price
+  are rejected in staging (a test watches the reject rate).
+- **Half of all products never changed price** in 22 months, so storing intervals
+  instead of daily rows shrinks the fact table from ~17M rows to a fraction.
+- **40+ grammage formats**, from `250g (1 kg = 3,16 €)` to `4x6x0,33l`,
+  `1 Stück ca. 300 g`, `84x1mm` and `0,01m3`. Every parsed size is cross-checked against two
   independent sources: the unit price printed by the source and the size in the
   product name. This caught an upstream quirk: `6x480g` often means 6 items
   totalling 480 g (the name says `6x80g`), while `6x1,50l` really is 9 litres.
@@ -54,11 +57,14 @@ From a two-week sample (30 files, ~692k rows):
   `unit_price_status` (match / multipack_total / from_name / conflict / unverified).
   In the two-week sample only 0.2% of rows disagreed before reconciliation.
 - **The source was scraped 40 products per page.** 99.5% of row counts per
-  category and day are multiples of 40, and 268 times in two weeks a product
-  appeared twice in the same category (overlapping pages). So a product missing
-  for a day is not necessarily delisted: 98.6% of reappearances are on the next
-  snapshot, and gaps of up to 3 missed snapshots are bridged. Product counts
-  per category should be read as approximate.
+  category and day are multiples of 40, and ~27k times a product appeared twice
+  in the same category (overlapping pages). So a product missing for a day is
+  not necessarily delisted: 97.2% of reappearances are on the next snapshot,
+  and gaps of up to 3 missed snapshots are bridged. Product counts per category
+  should be read as approximate.
+- **Some scrapes are partial**: Bavaria's last file (2025-09-09) stops after
+  "Küche & Haushalt". Snapshots well below the surrounding median are flagged
+  `is_partial`, and "current price" tolerates a few missing snapshots.
 - **About 27% of days have no file** (970 files for 665 days × 2 regions).
   Consecutive *snapshots*, not calendar days, define continuity.
 

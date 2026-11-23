@@ -25,6 +25,12 @@ models:
         description: Raw rows before collapsing category repeats.
       - name: products_on_sale
         description: Products flagged as on sale that day.
+      - name: typical_products
+        description: Median product count of the surrounding snapshots (±7).
+      - name: is_partial
+        description: >
+          True if the scrape was incomplete that day (well below typical_products).
+          Exclude partial days from day-level counts such as "products on sale per day".
 
   - name: dim_product
     description: >
@@ -174,4 +180,6 @@ models:
       - name: spanned_snapshots
         description: Snapshots between valid_from and valid_to; larger than observed_snapshots if gaps were bridged.
       - name: is_current
-        description: True if the interval reaches the region's last snapshot (the latest known price).
+        description: >
+          True for the latest known price: the interval reaches one of the
+          region's last few snapshots (same tolerance as gap bridging).

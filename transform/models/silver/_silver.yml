@@ -8,13 +8,8 @@ models:
           arguments:
             columns: [snapshot_date, region, gtin]
     columns:
-      - name: distinct_prices
-        description: Number of different prices among a product's category repeats. Must be 1.
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: [1]
-                quote: false
+      - name: has_price_conflict
+        description: True if the product's category repeats showed different prices that day (lower one kept).
 
   - name: silver_grammage
     description: Parsed pack size and unit price for every distinct grammage string.

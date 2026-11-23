@@ -23,6 +23,10 @@ vars:
   # break a price interval.
   max_gap_snapshots: 3
 
+  # A snapshot with fewer products than this share of the surrounding median
+  # is flagged as partial (incomplete scrape).
+  partial_snapshot_threshold: 0.85
+
   # Allowed relative difference between our computed unit price and the one
   # printed in the source, used by the parser test.
   unit_price_tolerance: 0.03

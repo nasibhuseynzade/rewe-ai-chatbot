@@ -21,6 +21,21 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORT = PROJECT_ROOT / "explore" / "profile_report.md"
 
+# The latest snapshot per region that has all categories (the very last file
+# can be a partial scrape). Prefix for queries; defines CTE `latest (region, d)`.
+LATEST_COMPLETE = """
+    WITH cats AS (
+        SELECT region, snapshot_date, count(DISTINCT category) AS n
+        FROM bronze GROUP BY ALL
+    ),
+    latest AS (
+        SELECT c.region, max(c.snapshot_date) AS d
+        FROM cats c
+        WHERE c.n = (SELECT max(n) FROM cats c2 WHERE c2.region = c.region)
+        GROUP BY c.region
+    )
+"""
+
 # (title, explanation, SQL). Every query reads from the `bronze` view.
 CHECKS: list[tuple[str, str, str]] = [
     (
@@ -38,16 +53,17 @@ CHECKS: list[tuple[str, str, str]] = [
     ),
     (
         "Smallest and largest files",
-        "Outliers in row count. A file far below the average is probably incomplete.",
+        "Outliers relative to the region's average. A file far below it is probably an "
+        "incomplete scrape.",
         """
         WITH f AS (SELECT region, snapshot_date, count(*) AS rows FROM bronze GROUP BY ALL),
              s AS (SELECT *, avg(rows) OVER (PARTITION BY region) AS region_avg FROM f)
         (SELECT 'smallest' AS kind, region, snapshot_date, rows,
                 round(100.0 * rows / region_avg) AS pct_of_avg
-         FROM s ORDER BY rows ASC LIMIT 5)
+         FROM s ORDER BY rows / region_avg ASC LIMIT 5)
         UNION ALL
         (SELECT 'largest', region, snapshot_date, rows, round(100.0 * rows / region_avg)
-         FROM s ORDER BY rows DESC LIMIT 5)
+         FROM s ORDER BY rows / region_avg DESC LIMIT 5)
         """,
     ),
     (
@@ -231,18 +247,17 @@ CHECKS: list[tuple[str, str, str]] = [
     ),
     (
         "Top brands",
-        "Most frequent brands on the latest snapshot.",
-        """
-        SELECT brand, count(*) AS products
-        FROM bronze WHERE snapshot_date = (SELECT max(snapshot_date) FROM bronze)
+        "Most frequent brands on each region's latest complete snapshot.",
+        LATEST_COMPLETE + """
+        SELECT b.brand, count(DISTINCT b.region || b.ean) AS products
+        FROM bronze b JOIN latest l ON b.region = l.region AND b.snapshot_date = l.d
         GROUP BY ALL ORDER BY products DESC LIMIT 15
         """,
     ),
     (
         "Categories",
-        "Products per category on each region's latest snapshot.",
-        """
-        WITH latest AS (SELECT region, max(snapshot_date) AS d FROM bronze GROUP BY region)
+        "Products per category on each region's latest complete snapshot.",
+        LATEST_COMPLETE + """
         SELECT b.category, b.region, count(*) AS products
         FROM bronze b JOIN latest l ON b.region = l.region AND b.snapshot_date = l.d
         GROUP BY ALL ORDER BY b.category, b.region
