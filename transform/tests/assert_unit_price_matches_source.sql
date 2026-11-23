@@ -1,14 +1,16 @@
 {{ config(severity = 'warn') }}
--- Parser check: our unit price (price / parsed size) should match the unit price
--- printed in the source, when both use the same base unit. The source rounds to
--- cents, so differences under half a cent are ignored.
--- Rows returned here point at grammage formats the parser gets wrong.
-select
-    f.gtin, f.region, f.valid_from, f.price, f.grammage,
-    f.unit_price, g.source_unit_price, g.source_unit_price_basis
-from {{ ref('fct_price_interval') }} as f
-join {{ ref('silver_grammage') }} as g on g.grammage = f.grammage
-where g.source_unit_price is not null
-  and g.source_unit_price_basis = f.measure_unit
-  and abs(f.unit_price - g.source_unit_price)
-      > greatest({{ var('unit_price_tolerance') }} * g.source_unit_price, 0.006)
+-- After reconciliation (silver_pack_measure) a few intervals still disagree with
+-- the unit price printed in the source: mostly jarred food whose printed unit
+-- price uses a different weight than the label. That is expected, as long as it
+-- stays rare. A jump in this share means a parser or reconciliation regression.
+-- Details: uv run python explore/query.py explore/sql/unit_price_mismatches.sql
+with s as (
+    select
+        count(*) filter (where unit_price_status = 'conflict') as conflicts,
+        count(*)                                                as intervals
+    from {{ ref('fct_price_interval') }}
+)
+select conflicts, intervals, round(conflicts / intervals, 4) as share
+from s
+where intervals > 0
+  and conflicts / intervals > {{ var('unit_price_conflict_max_share') }}

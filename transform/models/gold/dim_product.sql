@@ -43,8 +43,9 @@ select
     c.category                                              as primary_category,
     l.pack_size,
     g.pack_count,
-    g.measure_amount,
-    g.measure_unit,
+    m.measure_amount,
+    m.measure_unit,
+    coalesce(m.unit_price_status, 'unverified')             as measure_status,
     g.piece_count,
     g.is_approximate                                        as is_weight_approximate,
     h.first_seen,
@@ -59,3 +60,5 @@ from latest as l
 join history as h using (gtin)
 left join category_rank as c on c.gtin = l.gtin and c.rnk = 1
 left join {{ ref('silver_grammage') }} as g on g.grammage = l.grammage
+left join {{ ref('silver_pack_measure') }} as m
+       on m.grammage = l.grammage and m.name = l.name and m.price = l.price

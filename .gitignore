@@ -18,3 +18,4 @@ transform/dbt_packages/
 .vscode/
 .idea/
 .DS_Store
+transform/.user.yml

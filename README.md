@@ -46,8 +46,13 @@ From a two-week sample (30 files, ~692k rows):
 - **85% of products kept one price** over two weeks, so storing intervals instead of
   daily rows compresses the fact table by an order of magnitude.
 - **28 grammage formats**, from `250g (1 kg = 3,16 €)` to `4x6x0,33l` and
-  `1 Stück ca. 300 g`. The parser is validated against the unit price printed in
-  the source.
+  `1 Stück ca. 300 g`. Every parsed size is cross-checked against two
+  independent sources: the unit price printed by the source and the size in the
+  product name. This caught an upstream quirk: `6x480g` often means 6 items
+  totalling 480 g (the name says `6x80g`), while `6x1,50l` really is 9 litres.
+  The size is reconciled accordingly, and each price row carries a
+  `unit_price_status` (match / multipack_total / from_name / conflict / unverified).
+  In the two-week sample only 0.2% of rows disagreed before reconciliation.
 - **The source was scraped 40 products per page.** 99.5% of row counts per
   category and day are multiples of 40, and 268 times in two weeks a product
   appeared twice in the same category (overlapping pages). So a product missing

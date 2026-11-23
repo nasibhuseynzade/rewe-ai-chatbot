@@ -51,9 +51,13 @@ models:
       - name: pack_count
         description: Number of items in a multipack (6 for '6x0,33l'); 1 otherwise.
       - name: measure_amount
-        description: Total content in measure_unit (1.98 for '6x0,33l'). NULL for plain piece counts.
+        description: >
+          Total content in measure_unit (1.98 for '6x0,33l'), checked against the
+          product name and the printed unit price. NULL for plain piece counts.
       - name: measure_unit
         description: "'kg', 'l' or 'm'. Unit prices are per one of these."
+      - name: measure_status
+        description: How reliable measure_amount is; same values as fct_price_interval.unit_price_status.
       - name: piece_count
         description: Number of pieces for products sold by piece ('3x48 Stück' -> 144).
       - name: is_weight_approximate
@@ -142,11 +146,27 @@ models:
       - name: grammage
         description: Original grammage text including the source's unit price.
       - name: measure_amount
-        description: Total content in measure_unit.
+        description: Total content in measure_unit, reconciled (see unit_price_status).
       - name: measure_unit
         description: "'kg', 'l' or 'm'."
       - name: unit_price
-        description: price / measure_amount, i.e. EUR per kg, l or m. Use it to compare products of different sizes.
+        description: >
+          price / measure_amount, i.e. EUR per kg, l or m. Use it to compare
+          products of different sizes. For rankings, prefer rows with
+          unit_price_status in ('match', 'multipack_total', 'from_name').
+      - name: source_unit_price
+        description: Unit price as printed by the source, when it uses the same unit (kg / l / m).
+      - name: unit_price_status
+        description: >
+          match = printed unit price agrees; multipack_total = 'NxM' read as M in
+          total (confirmed by name or printed unit price); from_name = size taken
+          from the product name; conflict = printed unit price disagrees with the
+          label (often jarred food: drained vs. filled weight); unverified =
+          nothing to check against.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [match, multipack_total, from_name, conflict, unverified]
       - name: price_per_piece
         description: price / piece_count for products sold by piece.
       - name: observed_snapshots

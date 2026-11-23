@@ -21,3 +21,19 @@ models:
     columns:
       - name: grammage
         data_tests: [unique, not_null]
+
+  - name: silver_pack_measure
+    description: >
+      Final pack measure per (grammage, name, price), reconciled with the size in
+      the product name and the unit price printed in the source.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [grammage, name, price]
+    columns:
+      - name: unit_price_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [match, multipack_total, from_name, conflict, unverified]

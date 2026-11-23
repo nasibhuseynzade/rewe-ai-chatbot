@@ -23,7 +23,8 @@ with daily as (
         d.on_sale,
         coalesce(d.pack_size, '')       as pack_key,
         d.pack_size,
-        d.grammage
+        d.grammage,
+        d.name
     from {{ ref('silver_product_daily') }} as d
     join {{ ref('snapshots') }} as s using (snapshot_date, region)
 ),
@@ -62,6 +63,7 @@ intervals as (
         any_value(on_sale)                        as on_sale,
         any_value(pack_size)                      as pack_size,
         arg_max(grammage, snapshot_date)          as grammage,
+        arg_max(name, snapshot_date)              as name,
         min(snapshot_date)                        as valid_from,
         max(snapshot_date)                        as valid_to,
         count(*)                                  as observed_snapshots,
@@ -105,10 +107,12 @@ select
          then round(1 - i.price / i.regular_price, 4) end           as discount_pct,
     i.pack_size,
     i.grammage,
-    g.measure_amount,
-    g.measure_unit,
-    case when g.measure_amount > 0
-         then round(i.price / g.measure_amount, 4) end              as unit_price,
+    m.measure_amount,
+    m.measure_unit,
+    case when m.measure_amount > 0
+         then round(i.price / m.measure_amount, 4) end              as unit_price,
+    m.source_unit_price,
+    coalesce(m.unit_price_status, 'unverified')                     as unit_price_status,
     case when g.piece_count > 0
          then round(i.price / g.piece_count, 4) end                 as price_per_piece,
     i.observed_snapshots,
@@ -117,3 +121,5 @@ select
 from with_regular as i
 join region_last as r using (region)
 left join {{ ref('silver_grammage') }} as g on g.grammage = i.grammage
+left join {{ ref('silver_pack_measure') }} as m
+       on m.grammage = i.grammage and m.name = i.name and m.price = i.price

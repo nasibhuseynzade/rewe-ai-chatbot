@@ -86,6 +86,13 @@ select
         when unit = 'Stück' and approx_weight_kg is not null then 'kg'
     end                                                                  as measure_unit,
     case when unit = 'Stück' then pack_count * unit_amount end           as piece_count,
+    -- amount of ONE item in the base unit (the "M" of "NxM"); used when the
+    -- source wrote the total after the "x" (see silver_pack_measure)
+    cast(case
+        when unit in ('g', 'ml') then unit_amount * 0.001
+        when unit = 'cm'         then unit_amount * 0.01
+        when unit in ('kg', 'l', 'm') then unit_amount
+    end as decimal(14, 6))                                               as item_measure,
     source_unit_price,
     source_unit_price_basis,
     unit is not null                                                     as is_parsed

@@ -27,6 +27,10 @@ vars:
   # printed in the source, used by the parser test.
   unit_price_tolerance: 0.03
 
+  # Largest acceptable share of price intervals whose unit price still conflicts
+  # with the printed one after reconciliation (0.005 = 0.5%).
+  unit_price_conflict_max_share: 0.005
+
 models:
   rewe:
     staging:
