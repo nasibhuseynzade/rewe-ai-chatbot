@@ -31,4 +31,4 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: [match, multipack_total, from_name, conflict, unverified]
+                values: [match, unit_scale_fixed, multipack_total, from_name, conflict, unverified]

@@ -17,6 +17,8 @@
 
   unit_price_status, in order of evaluation:
     match            printed unit price agrees with N x M
+    unit_scale_fixed printed unit price agrees only with N x M x 1000 or / 1000:
+                     a unit typo upstream ("0,75ml" wine, "900kg" strawberries)
     conflict         the name confirms N x M but the printed unit price
                      disagrees (e.g. drained vs. filled weight); N x M kept
     multipack_total  name or printed unit price say M is the total; M used
@@ -86,6 +88,12 @@ checks as (
         src_unit_price is not null and total_given > 0
           and abs(price / total_given - src_unit_price)
               <= greatest(tol * src_unit_price, 0.006)                       as src_ok_given,
+        src_unit_price is not null and total_product > 0
+          and abs(price / (total_product * 1000) - src_unit_price)
+              <= greatest(tol * src_unit_price, 0.006)                       as src_ok_times_1000,
+        src_unit_price is not null and total_product > 0
+          and abs(price / (total_product / 1000) - src_unit_price)
+              <= greatest(tol * src_unit_price, 0.006)                       as src_ok_div_1000,
         src_unit_price is not null and name_total > 0 and name_unit = measure_unit
           and abs(price / name_total - src_unit_price)
               <= greatest(tol * src_unit_price, 0.006)                       as src_ok_name,
@@ -103,6 +111,8 @@ decided as (
         case
             when total_product is null                       then 'unverified'
             when coalesce(src_ok_product, false)             then 'match'
+            when coalesce(src_ok_times_1000, false)
+              or coalesce(src_ok_div_1000, false)            then 'unit_scale_fixed'
             when coalesce(name_ok_product, false)            then
                 case when src_unit_price is null then 'unverified' else 'conflict' end
             when total_given is not null
@@ -119,9 +129,12 @@ select
     grammage,
     name,
     price,
-    case unit_price_status
-        when 'multipack_total' then total_given
-        when 'from_name'       then name_total
+    case
+        when unit_price_status = 'multipack_total' then total_given
+        when unit_price_status = 'from_name'       then name_total
+        when unit_price_status = 'unit_scale_fixed' and coalesce(src_ok_times_1000, false)
+                                                   then total_product * 1000
+        when unit_price_status = 'unit_scale_fixed' then total_product / 1000
         else total_product
     end                                                   as measure_amount,
     measure_unit,

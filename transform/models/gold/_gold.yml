@@ -159,12 +159,13 @@ models:
         description: >
           price / measure_amount, i.e. EUR per kg, l or m. Use it to compare
           products of different sizes. For rankings, prefer rows with
-          unit_price_status in ('match', 'multipack_total', 'from_name').
+          unit_price_status in ('match', 'unit_scale_fixed', 'multipack_total', 'from_name').
       - name: source_unit_price
         description: Unit price as printed by the source, when it uses the same unit (kg / l / m).
       - name: unit_price_status
         description: >
-          match = printed unit price agrees; multipack_total = 'NxM' read as M in
+          match = printed unit price agrees; unit_scale_fixed = unit typo upstream
+          fixed by a factor of 1000 ('0,75ml' wine); multipack_total = 'NxM' read as M in
           total (confirmed by name or printed unit price); from_name = size taken
           from the product name; conflict = printed unit price disagrees with the
           label (often jarred food: drained vs. filled weight); unverified =
@@ -172,7 +173,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                values: [match, multipack_total, from_name, conflict, unverified]
+                values: [match, unit_scale_fixed, multipack_total, from_name, conflict, unverified]
       - name: price_per_piece
         description: price / piece_count for products sold by piece.
       - name: observed_snapshots

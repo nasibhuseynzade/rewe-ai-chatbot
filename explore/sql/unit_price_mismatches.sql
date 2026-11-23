@@ -13,6 +13,16 @@ from gold.fct_price_interval
 group by all
 order by intervals desc
 
+-- ## Unit typos fixed by a factor of 1000 (sample)
+select d.name, f.grammage, f.price, f.measure_amount, f.measure_unit,
+       f.unit_price, f.source_unit_price
+from gold.fct_price_interval f
+join gold.dim_product d using (gtin)
+where f.unit_price_status = 'unit_scale_fixed'
+qualify row_number() over (partition by f.gtin order by f.valid_from desc) = 1
+order by d.name
+limit 25
+
 -- ## Multipacks read as total (sample)
 select d.name, f.grammage, f.price, f.measure_amount, f.measure_unit,
        f.unit_price, f.source_unit_price
