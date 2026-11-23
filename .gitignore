@@ -1,0 +1,20 @@
+# Data never goes into Git (raw files are ~4 GB; everything is reproducible from the scripts)
+data/
+
+# Secrets
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# dbt
+transform/target/
+transform/logs/
+transform/dbt_packages/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

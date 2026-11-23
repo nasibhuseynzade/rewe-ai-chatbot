@@ -1,0 +1,15 @@
+[project]
+name = "rewe-ai"
+version = "0.1.0"
+description = "REWE price history (Nov 2023 - Sep 2025): data pipeline, dashboard and LLM assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=1.1",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+]
+
+[tool.uv]
+# This is an application, not a library: don't build/install it as a package.
+package = false
