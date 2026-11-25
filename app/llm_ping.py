@@ -22,6 +22,7 @@ import time
 import requests
 
 from app import config  # noqa: F401  (loads .env)
+from app.llm import all_providers
 from app.tools import TOOL_SPECS
 
 QUESTION = "Was kostet Nutella aktuell in Bayern?"
@@ -32,30 +33,14 @@ SYSTEM = (
 
 
 def providers() -> dict[str, dict]:
-    cf_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
-    return {
-        "gemini": {
-            "base": "https://generativelanguage.googleapis.com/v1beta/openai",
-            "key": os.getenv("GEMINI_API_KEY", ""),
-            "model": os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
-        },
-        "groq": {
-            "base": "https://api.groq.com/openai/v1",
-            "key": os.getenv("GROQ_API_KEY", ""),
-            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
-        },
-        "cloudflare": {
-            "base": f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1",
-            "key": os.getenv("CLOUDFLARE_API_TOKEN", "") if cf_account else "",
-            "model": os.getenv("CLOUDFLARE_MODEL", "@cf/google/gemma-4-26b-a4b-it"),
-            "account": cf_account,
-        },
-        "ollama": {
-            "base": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-            "key": "ollama",  # Ollama ignores the key
-            "model": os.getenv("OLLAMA_MODEL", "qwen3.5:4b"),
-        },
-    }
+    """Same providers, models and .env overrides as the assistant uses (app.llm)."""
+    out = {}
+    for name, p in all_providers().items():
+        out[name] = {"base": p.base_url, "key": p.api_key, "model": p.model,
+                     "timeout": p.timeout_s, "extra": p.extra_body,
+                     "account": os.getenv("CLOUDFLARE_ACCOUNT_ID", "")}
+    out["ollama"]["key"] = "ollama"  # test Ollama whenever it is running
+    return out
 
 
 def _short_error(resp: requests.Response) -> str:
@@ -82,17 +67,18 @@ def ping(name: str, p: dict) -> dict:
         "tools": TOOL_SPECS,
         "tool_choice": "auto",
         "max_tokens": 2048,
+        **p["extra"],
     }
     headers = {"Authorization": f"Bearer {p['key']}", "Content-Type": "application/json"}
     start = time.perf_counter()
     try:
         resp = requests.post(f"{p['base']}/chat/completions", json=payload,
-                             headers=headers, timeout=90)
+                             headers=headers, timeout=(5, p["timeout"]))
     except requests.ConnectionError:
         detail = "not running (start it with: ollama serve)" if name == "ollama" else "connection failed"
         return {"provider": name, "status": "SKIP" if name == "ollama" else "FAIL", "detail": detail}
     except requests.Timeout:
-        return {"provider": name, "status": "FAIL", "detail": "timed out after 90 s"}
+        return {"provider": name, "status": "FAIL", "detail": f"timed out after {p['timeout']:.0f} s"}
     latency = time.perf_counter() - start
     if resp.status_code != 200:
         return {"provider": name, "status": "FAIL", "model": p["model"], "detail": _short_error(resp)}

@@ -50,6 +50,29 @@ def _region(region: str | None) -> str | None:
     return key
 
 
+_NULL_WORDS = {"", "null", "none", "nil", "all", "any", "alle", "all categories", "*"}
+_category_cache: dict[int, dict[str, str]] = {}
+
+
+def _category(con: duckdb.DuckDBPyConnection, category: str | None) -> str | None:
+    """Normalise a category argument.
+
+    Models sometimes send the string "null" / "None" instead of JSON null, or the
+    right name in the wrong case; both used to return zero rows silently. Unknown
+    names raise with the list of valid ones, so the model can correct itself.
+    """
+    if category is None or str(category).strip().lower() in _NULL_WORDS:
+        return None
+    names = _category_cache.get(id(con))
+    if names is None:
+        names = {c.lower(): c for c in list_categories(con)}
+        _category_cache[id(con)] = names
+    found = names.get(str(category).strip().lower())
+    if found is None:
+        raise ValueError(f"unknown category '{category}'; use one of: {', '.join(sorted(names.values()))}")
+    return found
+
+
 def _limit(limit: int | None, default: int, maximum: int = 50) -> int:
     return max(1, min(int(limit or default), maximum))
 
@@ -131,6 +154,7 @@ def get_price_change(con: duckdb.DuckDBPyConnection, gtins: list[str],
 
 def get_category_index(con: duckdb.DuckDBPyConnection, category: str | None = None,
                        region: str | None = None) -> dict:
+    category = _category(con, category)
     sql = """
         SELECT region, category, month, price_index, pct_change_vs_prev_month, products_compared
         FROM marts.mart_category_price_index
@@ -163,6 +187,7 @@ def rank_categories_by_inflation(con: duckdb.DuckDBPyConnection,
 def rank_price_changes(con: duckdb.DuckDBPyConnection, direction: str = "increase",
                        category: str | None = None, region: str | None = None,
                        min_months: int = 6, limit: int = 10) -> dict:
+    category = _category(con, category)
     order = "DESC" if direction != "decrease" else "ASC"
     sql = f"""
         SELECT name, brand, category, region, first_month, last_month, first_price, last_price,
@@ -184,6 +209,7 @@ def rank_price_changes(con: duckdb.DuckDBPyConnection, direction: str = "increas
 
 def find_shrinkflation(con: duckdb.DuckDBPyConnection, category: str | None = None,
                        region: str | None = None, limit: int = 20) -> dict:
+    category = _category(con, category)
     sql = """
         SELECT name, brand, category, region, changed_on, old_pack_size, new_pack_size,
                old_price, new_price, content_drop_pct, unit_price_increase_pct
@@ -201,6 +227,9 @@ def find_shrinkflation(con: duckdb.DuckDBPyConnection, category: str | None = No
 
 def compare_regions(con: duckdb.DuckDBPyConnection, gtins: list[str] | None = None,
                     category: str | None = None, limit: int = 20) -> dict:
+    category = _category(con, category)
+    if isinstance(gtins, str):
+        gtins = None if gtins.strip().lower() in _NULL_WORDS else [gtins]
     sql = """
         WITH filtered AS (
             SELECT * FROM marts.mart_region_compare
@@ -231,6 +260,7 @@ def compare_regions(con: duckdb.DuckDBPyConnection, gtins: list[str] | None = No
 
 def get_sales_stats(con: duckdb.DuckDBPyConnection, category: str | None = None,
                     region: str | None = None) -> dict:
+    category = _category(con, category)
     sql = """
         SELECT region, month, category, share_on_sale_pct, avg_discount_pct, sale_intervals_started
         FROM marts.mart_sales_monthly
@@ -322,7 +352,8 @@ TOOL_SPECS: list[dict] = [
     _spec("get_category_index",
           "Monthly price index (first month = 100) for one category, or for all categories "
           "together (the shopping basket) when category is null. For 'how much more expensive "
-          "did food / dairy / ... get'.",
+          "did food / dairy / ... get over time'. Each region is measured against its own "
+          "first month, so the index can't tell which region is cheaper: use compare_regions.",
           {"category": _CATEGORY, "region": _REGION}, []),
     _spec("rank_categories_by_inflation",
           "All categories ranked by how much their prices rose since the first month.",
@@ -341,13 +372,18 @@ TOOL_SPECS: list[dict] = [
            "limit": {"type": "integer", "description": "Max results (default 20)."}},
           []),
     _spec("compare_regions",
-          "Compare current regular prices between Bavaria and Schleswig-Holstein: a summary "
-          "row plus the products with the largest differences. Filter by gtins or category.",
+          "Which region is cheaper or more expensive: compares current regular prices of the "
+          "same products in Bavaria and Schleswig-Holstein. Returns a summary row (how many "
+          "products are pricier in each region) plus the largest differences. Filter by gtins "
+          "or category.",
           {"gtins": {**_GTINS, "type": ["array", "null"]}, "category": _CATEGORY,
            "limit": {"type": "integer", "description": "Max product rows (default 20)."}},
           []),
     _spec("get_sales_stats",
-          "Monthly share of products on sale and average discount, for one category or all.",
+          "Monthly promotions for one category or all categories together (category null): "
+          "share_on_sale_pct = share of products on sale, avg_discount_pct = average discount "
+          "of those on sale. To rank categories in one month, use run_sql on "
+          "marts.mart_sales_monthly.",
           {"category": _CATEGORY, "region": _REGION}, []),
     _spec("describe_table",
           "Columns and their meaning for one table. Call before writing SQL for run_sql.",

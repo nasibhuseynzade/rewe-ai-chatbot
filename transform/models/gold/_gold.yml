@@ -46,7 +46,9 @@ models:
         description: Latest product name (German), usually includes brand and size.
         data_tests: [not_null]
       - name: brand
-        description: Latest known brand. NULL for unbranded products such as loose fruit.
+        description: >
+          Latest known brand. NULL for unbranded products such as loose fruit;
+          leave NULL out when ranking or counting brands.
       - name: primary_category
         description: >
           The product's main department. Use this for "per category" totals; it

@@ -118,6 +118,12 @@ def score(case: dict, result: dict) -> dict:
     if case.get("mentions"):
         missing = [m for m in case["mentions"] if _norm(m) not in _norm(text)]
         checks["mentions"] = (not missing, f"missing {missing}" if missing else "")
+    if case.get("not_mentions"):
+        found = [m for m in case["not_mentions"] if _norm(m) in _norm(text)]
+        checks["not_mentions"] = (not found, f"contains {found}" if found else "")
+    if case.get("max_chars"):
+        ok = len(text) <= case["max_chars"]
+        checks["max_chars"] = (ok, "" if ok else f"{len(text)} chars > {case['max_chars']}")
     if case.get("mentions_any"):
         ok = any(_norm(m) in _norm(text) for m in case["mentions_any"])
         checks["mentions_any"] = (ok, "" if ok else f"none of {case['mentions_any']}")

@@ -26,6 +26,13 @@ LLM_ROWS = 20            # rows of each tool result the model gets to see
 LLM_RESULT_CHARS = 6000  # hard cap per tool result sent to the model
 HISTORY_TURNS = 6        # earlier user/assistant messages kept for follow-ups
 
+# Safety net for the scope rule: an answer that used no tool can only be a short
+# refusal or a note about the data's limits. A long one means the prompt was
+# talked around (poem, code, essay), so it is replaced.
+OFF_TOPIC_MAX_CHARS = 700
+OFF_TOPIC_REPLY = ("I can only answer questions about REWE prices in this dataset, for example: "
+                   "\"Which category got the most expensive?\"")
+
 
 def _compact(result: dict) -> str:
     """Tool result as the model sees it: the first rows, each with its column names.
@@ -104,13 +111,18 @@ def answer(question: str, history: list[dict] | None = None,
                     result = call_tool(con, name, args)
                 except ValueError as exc:
                     args, result = {}, {"tool": name, "error": str(exc)}
+                    # providers reject history with broken JSON arguments (HTTP 400)
+                    call["function"]["arguments"] = "{}"
                 steps.append({"tool": name, "arguments": args,
                               **{k: v for k, v in result.items() if k != "tool"}})
                 messages.append({"role": "tool", "tool_call_id": call["id"],
                                  "content": _compact(result)})
 
+        guarded = False
         if not text:
             text = "Sorry, I couldn't put an answer together. Please try rephrasing the question."
+        elif not steps and len(text) > OFF_TOPIC_MAX_CHARS:
+            text, guarded = OFF_TOPIC_REPLY, True
         return {
             "question": question,
             "answer": text,
@@ -119,6 +131,7 @@ def answer(question: str, history: list[dict] | None = None,
             "llm_calls": len(providers_used),
             "providers_used": providers_used,
             "fallbacks": fallbacks,
+            "guarded": guarded,
             **usage,
             "latency_s": round(time.perf_counter() - started, 2),
         }

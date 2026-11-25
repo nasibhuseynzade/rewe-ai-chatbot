@@ -54,28 +54,44 @@ class Provider:
     base_url: str
     api_key: str
     model: str
+    timeout_s: float = TIMEOUT_S
+    extra_body: dict = field(default_factory=dict)  # merged into every request
 
     @property
     def available(self) -> bool:
         return bool(self.api_key)
 
 
+def _provider(name: str, base_url: str, api_key: str, model: str, timeout_s: float = TIMEOUT_S) -> Provider:
+    """Provider with optional .env overrides <NAME>_TIMEOUT_SECONDS and <NAME>_EXTRA_BODY (JSON)."""
+    prefix = name.upper()
+    extra = os.getenv(f"{prefix}_EXTRA_BODY", "").strip()
+    try:
+        extra_body = json.loads(extra) if extra else {}
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{prefix}_EXTRA_BODY is not valid JSON: {exc}") from exc
+    return Provider(name, base_url, api_key, model,
+                    float(os.getenv(f"{prefix}_TIMEOUT_SECONDS", timeout_s)), extra_body)
+
+
 def all_providers() -> dict[str, Provider]:
     cf_account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
     return {
-        "gemini": Provider("gemini", "https://generativelanguage.googleapis.com/v1beta/openai",
-                           os.getenv("GEMINI_API_KEY", ""),
-                           os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")),
-        "groq": Provider("groq", "https://api.groq.com/openai/v1",
-                         os.getenv("GROQ_API_KEY", ""),
-                         os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")),
-        "cloudflare": Provider("cloudflare",
-                               f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1",
-                               os.getenv("CLOUDFLARE_API_TOKEN", "") if cf_account else "",
-                               os.getenv("CLOUDFLARE_MODEL", "@cf/google/gemma-4-26b-a4b-it")),
-        "ollama": Provider("ollama", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-                           "ollama" if os.getenv("OLLAMA_MODEL") else "",
-                           os.getenv("OLLAMA_MODEL", "qwen3.5:4b")),
+        "gemini": _provider("gemini", "https://generativelanguage.googleapis.com/v1beta/openai",
+                            os.getenv("GEMINI_API_KEY", ""),
+                            os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")),
+        "groq": _provider("groq", "https://api.groq.com/openai/v1",
+                          os.getenv("GROQ_API_KEY", ""),
+                          os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")),
+        # Workers AI models think before answering (slower), so they get more time.
+        "cloudflare": _provider("cloudflare",
+                                f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1",
+                                os.getenv("CLOUDFLARE_API_TOKEN", "") if cf_account else "",
+                                os.getenv("CLOUDFLARE_MODEL", "@cf/google/gemma-4-26b-a4b-it"),
+                                timeout_s=60),
+        "ollama": _provider("ollama", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+                            "ollama" if os.getenv("OLLAMA_MODEL") else "",
+                            os.getenv("OLLAMA_MODEL", "qwen3.5:4b"), timeout_s=90),
     }
 
 
@@ -175,14 +191,14 @@ def chat(messages: list[dict], tools: list[dict] | None = None,
     attempts: list[dict] = []
     for p in chain:
         payload: dict = {"model": p.model, "messages": _for_provider(messages, p.name),
-                         "max_tokens": MAX_TOKENS}
+                         "max_tokens": MAX_TOKENS, **p.extra_body}
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
         start = time.perf_counter()
         try:
             resp = requests.post(f"{p.base_url}/chat/completions", json=payload,
-                                 timeout=(CONNECT_TIMEOUT_S, TIMEOUT_S),
+                                 timeout=(CONNECT_TIMEOUT_S, p.timeout_s),
                                  headers={"Authorization": f"Bearer {p.api_key}"})
         except (requests.ConnectionError, requests.Timeout) as exc:
             attempts.append({"provider": p.name, "error": type(exc).__name__})
