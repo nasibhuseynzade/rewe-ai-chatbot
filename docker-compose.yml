@@ -11,6 +11,8 @@ services:
     env_file: .env
     environment:
       LLM_PROVIDERS: ${LLM_PROVIDERS:-cloudflare,groq,gemini}
+      DATA_DIR: /app/var
+      SERVING_PATH: /app/serving/serving.duckdb
       API_TRUST_PROXY: "1"
       API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-https://nasib.tech,https://www.nasib.tech}
     volumes:
