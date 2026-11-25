@@ -21,5 +21,3 @@ transform/dbt_packages/
 transform/.user.yml
 eval/results/*.jsonl
 
-# screenshots the Claude app saves into the project folder
-Claude outputs/
