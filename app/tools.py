@@ -51,7 +51,6 @@ def _region(region: str | None) -> str | None:
 
 
 _NULL_WORDS = {"", "null", "none", "nil", "all", "any", "alle", "all categories", "*"}
-_category_cache: dict[int, dict[str, str]] = {}
 
 
 def _category(con: duckdb.DuckDBPyConnection, category: str | None) -> str | None:
@@ -63,10 +62,7 @@ def _category(con: duckdb.DuckDBPyConnection, category: str | None) -> str | Non
     """
     if category is None or str(category).strip().lower() in _NULL_WORDS:
         return None
-    names = _category_cache.get(id(con))
-    if names is None:
-        names = {c.lower(): c for c in list_categories(con)}
-        _category_cache[id(con)] = names
+    names = {c.lower(): c for c in list_categories(con)}  # a few ms; no cache to go stale
     found = names.get(str(category).strip().lower())
     if found is None:
         raise ValueError(f"unknown category '{category}'; use one of: {', '.join(sorted(names.values()))}")
