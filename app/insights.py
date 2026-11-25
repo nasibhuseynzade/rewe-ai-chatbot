@@ -48,7 +48,7 @@ SQL = {
         WHERE region = 'bavaria' AND same_pack_size AND months_observed >= 12""",
     "shrinkflation": """
         SELECT name, region, changed_on, old_pack_size, new_pack_size, old_price, new_price,
-               unit_price_increase_pct
+               content_drop_pct, unit_price_increase_pct
         FROM marts.mart_shrinkflation
         ORDER BY unit_price_increase_pct DESC""",
     "regions": """
@@ -109,7 +109,9 @@ def build_cards(con: duckdb.DuckDBPyConnection) -> list[dict]:
             "title": "Steepest price increases",
             "headline": f"{r0['name']}: {r0['first_price']:.2f} € → {r0['last_price']:.2f} €",
             "detail": "Same pack size, sold for at least 12 months. Cocoa and chocolate dominate.",
-            "chart": {"type": "bar", "x": "name", "y": "price_change_pct", "series": None, "rows": risers},
+            # before -> after: the jump from the first to the last price
+            "chart": {"type": "dumbbell", "label": "name", "from": "first_price", "to": "last_price",
+                      "y": "price_change_pct", "rows": risers},
             "sql": _sql("risers"),
             "ask": "Which chocolate and cocoa products got more expensive, and by how much?",
         })
@@ -123,10 +125,11 @@ def build_cards(con: duckdb.DuckDBPyConnection) -> list[dict]:
             "headline": f"{d['pricier_pct']:.0f}% pricier · {d['cheaper_pct']:.0f}% cheaper",
             "detail": f"{d['products']:,} products in Bavaria with the same pack size, sold for at "
                       f"least 12 months; {d['unchanged_pct']:.0f}% kept their price.",
-            "chart": {"type": "bar", "x": "label", "y": "pct", "series": None, "rows": [
-                {"label": "pricier", "pct": d["pricier_pct"]},
-                {"label": "unchanged", "pct": d["unchanged_pct"]},
-                {"label": "cheaper", "pct": d["cheaper_pct"]}]},
+            # parts of a whole, diverging: up / unchanged / down
+            "chart": {"type": "stack", "y": "pct", "rows": [
+                {"label": "pricier", "pct": d["pricier_pct"], "tone": "up"},
+                {"label": "unchanged", "pct": d["unchanged_pct"], "tone": "same"},
+                {"label": "cheaper", "pct": d["cheaper_pct"], "tone": "down"}]},
             "sql": _sql("direction"),
             "ask": "Which products got cheaper the most?",
         })
@@ -141,7 +144,8 @@ def build_cards(con: duckdb.DuckDBPyConnection) -> list[dict]:
             "detail": f"Example: {s0['name']}, {s0['old_pack_size']} → {s0['new_pack_size']}, "
                       f"{s0['old_price']:.2f} € → {s0['new_price']:.2f} € "
                       f"({s0['unit_price_increase_pct']:+.0f}% per kg).",
-            "chart": {"type": "table", "rows": shrink[:5]},
+            # old pack = full track, new pack = filled part
+            "chart": {"type": "shrink", "rows": shrink[:6]},
             "sql": _sql("shrinkflation"),
             "ask": "Show me all shrinkflation cases.",
         })
@@ -156,10 +160,11 @@ def build_cards(con: duckdb.DuckDBPyConnection) -> list[dict]:
             "headline": f"{same:.0f}% same price",
             "detail": f"Of {g['products']:,} products sold in both regions, {g['pricier_in_bavaria']:,} "
                       f"cost more in Bavaria and {g['pricier_in_sh']:,} in Schleswig-Holstein.",
-            "chart": {"type": "bar", "x": "label", "y": "products", "series": None, "rows": [
-                {"label": "same price", "products": g["same_price"]},
-                {"label": "pricier in Bavaria", "products": g["pricier_in_bavaria"]},
-                {"label": "pricier in Schleswig-Holstein", "products": g["pricier_in_sh"]}]},
+            # 100 squares, one per percent of products
+            "chart": {"type": "waffle", "y": "products", "rows": [
+                {"label": "pricier in Bavaria", "products": g["pricier_in_bavaria"], "tone": "bavaria"},
+                {"label": "pricier in Schleswig-Holstein", "products": g["pricier_in_sh"], "tone": "sh"},
+                {"label": "same price", "products": g["same_price"], "tone": "same"}]},
             "sql": _sql("regions"),
             "ask": "Which products have the biggest price difference between the two regions?",
         })

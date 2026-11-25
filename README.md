@@ -143,6 +143,25 @@ uv run python explore/query.py "select region, count(*) from gold.snapshots grou
 uv run python explore/query.py explore/sql/unit_price_mismatches.sql
 ```
 
+## Deployment
+
+The API runs as one Docker container next to an existing Caddy reverse proxy; the
+data pipeline runs on a laptop and only its output, `data/serving.duckdb`, is copied
+to the server and mounted read-only.
+
+```bash
+# on the server
+git clone https://github.com/nasibhuseynzade/rewe-ai.git && cd rewe-ai
+mkdir -p data && scp laptop:rewe-ai/data/serving.duckdb data/   # or copy from the laptop with scp
+cp .env.example .env            # LLM keys, LLM_PROVIDERS=cloudflare,groq,gemini, CADDY_NETWORK
+docker compose up -d --build
+# add deploy/Caddyfile.snippet to the Caddyfile and reload Caddy
+```
+
+The image contains only the API dependencies (`requirements-api.txt`, no dbt) and runs
+as an unprivileged user with one worker, because the rate limiter keeps its counters
+in memory. After a new `serving.duckdb` is copied: `docker compose restart rewe-api`.
+
 ## Project layout
 
 ```

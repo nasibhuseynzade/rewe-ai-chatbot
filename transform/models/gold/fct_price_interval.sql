@@ -12,6 +12,14 @@
 
   regular_price: the price outside promotions. For an on_sale interval it is
   the previous non-sale price (or the next one if the product started on sale).
+
+  Data gaps: when a product is listed on both sides of days without data (no
+  snapshot at all, like 13 April - 23 August 2024, or the product missed at most
+  max_gap_snapshots scrapes) and its price changed in between, the dates between
+  the two intervals are filled with the previous regular price, not on sale.
+  A non-sale interval is extended; after a sale interval a non-sale interval is
+  added. Products that were really absent (snapshots exist, product not listed
+  for longer) are not filled. filled_days counts the days added to a row.
 #}
 with daily as (
     select
@@ -68,6 +76,7 @@ intervals as (
         max(snapshot_date)                        as valid_to,
         count(*)                                  as observed_snapshots,
         max(snapshot_seq) - min(snapshot_seq) + 1 as spanned_snapshots,
+        min(snapshot_seq)                         as first_seq,
         max(snapshot_seq)                         as last_seq
     from numbered
     group by gtin, region, interval_no
@@ -87,6 +96,51 @@ with_regular as (
              )
         end as regular_price
     from intervals
+),
+
+gaps as (
+    select
+        *,
+        lead(valid_from) over w   as next_from,
+        lead(first_seq)  over w   as next_first_seq
+    from with_regular
+    window w as (partition by gtin, region order by interval_no)
+),
+
+with_gap as (
+    select
+        *,
+        next_from is not null
+          and next_first_seq - last_seq <= {{ var('max_gap_snapshots') }} + 1
+          and date_diff('day', valid_to, next_from) > 1                    as gap_after
+    from gaps
+),
+
+filled as (
+    -- non-sale intervals run on until the next interval starts
+    select
+        gtin, region, price, on_sale, pack_size, grammage, name, valid_from,
+        case when gap_after and not on_sale then next_from - 1 else valid_to end      as valid_to,
+        observed_snapshots, spanned_snapshots, last_seq, regular_price,
+        case when gap_after and not on_sale then date_diff('day', valid_to, next_from) - 1
+             else 0 end                                                             as filled_days
+    from with_gap
+    union all
+    -- after a sale interval, the gap gets the regular price, not on sale
+    select
+        gtin, region, regular_price, false, pack_size, grammage, name,
+        valid_to + 1, next_from - 1,
+        0, 0, last_seq, regular_price,
+        date_diff('day', valid_to, next_from) - 1
+    from with_gap
+    where gap_after and on_sale and regular_price is not null
+),
+
+renumbered as (
+    select
+        *,
+        cast(row_number() over (partition by gtin, region order by valid_from) as integer) as interval_no
+    from filled
 ),
 
 region_last as (
@@ -118,10 +172,11 @@ select
          then round(i.price / g.piece_count, 4) end                 as price_per_piece,
     i.observed_snapshots,
     i.spanned_snapshots,
+    i.filled_days,
     -- seen in one of the region's last (max_gap_snapshots + 1) snapshots; the
     -- same tolerance as gap bridging, so a partial last scrape doesn't matter
     i.last_seq >= r.last_seq - {{ var('max_gap_snapshots') }}       as is_current
-from with_regular as i
+from renumbered as i
 join region_last as r using (region)
 left join {{ ref('silver_grammage') }} as g on g.grammage = i.grammage
 left join {{ ref('silver_pack_measure') }} as m

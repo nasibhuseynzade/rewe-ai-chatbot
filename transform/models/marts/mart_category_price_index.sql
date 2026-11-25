@@ -72,7 +72,7 @@ links as (
     select region, category, month, month_seq,
            exp(avg(ln(ratio))) as link, count(*) as products_compared
     from clean
-    group by all
+    group by region, category, month, month_seq
     union all
     select region, 'All categories', month, month_seq,
            exp(avg(ln(ratio))), count(*)

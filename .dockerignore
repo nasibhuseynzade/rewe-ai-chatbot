@@ -1,0 +1,5 @@
+# Only the API code and its requirements go into the image.
+*
+!app/
+!requirements-api.txt
+**/__pycache__

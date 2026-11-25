@@ -1,0 +1,36 @@
+# Runs the API next to an existing Caddy container on the same Docker network.
+#   cp .env.example .env   # fill in the LLM keys and CADDY_NETWORK
+#   docker compose up -d --build
+# After replacing data/serving.duckdb: docker compose restart rewe-api
+services:
+  rewe-api:
+    build: .
+    image: rewe-api
+    container_name: rewe-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      LLM_PROVIDERS: ${LLM_PROVIDERS:-cloudflare,groq,gemini}
+      API_TRUST_PROXY: "1"
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-https://nasib.tech,https://www.nasib.tech}
+    volumes:
+      - ./data/serving.duckdb:/app/serving/serving.duckdb:ro
+      - rewe-var:/app/var
+    expose:
+      - "8000"
+    networks:
+      - caddy
+    mem_limit: 1500m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  rewe-var:
+
+networks:
+  caddy:
+    external: true
+    name: ${CADDY_NETWORK:-caddy}

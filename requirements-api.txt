@@ -1,0 +1,7 @@
+# Runtime dependencies of the API container only (no dbt), pinned to uv.lock.
+duckdb==2.0.1
+fastapi==0.165.0
+uvicorn[standard]==0.54.0
+requests==2.34.2
+python-dotenv==1.2.4
+sqlglot==30.33.0

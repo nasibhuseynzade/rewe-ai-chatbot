@@ -37,7 +37,8 @@ PER_DAY = int(os.getenv("API_LIMIT_PER_DAY", "40"))
 GLOBAL_PER_DAY = int(os.getenv("API_LIMIT_GLOBAL_PER_DAY", "300"))
 TRUST_PROXY = os.getenv("API_TRUST_PROXY", "0") == "1"   # behind Caddy: use X-Forwarded-For
 ORIGINS = [o.strip() for o in os.getenv(
-    "API_ALLOWED_ORIGINS", "https://nasib.tech,http://localhost:3000,http://localhost:5173,http://127.0.0.1:5500"
+    "API_ALLOWED_ORIGINS",
+    "https://nasib.tech,https://www.nasib.tech,http://localhost:5500,http://127.0.0.1:5500"
 ).split(",") if o.strip()]
 LOG_PATH = config.DATA_DIR / "logs" / "chat.jsonl"
 

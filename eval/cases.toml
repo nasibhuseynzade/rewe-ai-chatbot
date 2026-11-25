@@ -11,8 +11,8 @@
 #   max_chars    the answer must not be longer than this
 #   no_tools     true: the assistant must answer without calling any tool
 #
-# Expected values come from the data (snapshots 2023-11-15 to 2025-09-09). Rebuild
-# them when the data or the marts change.
+# Expected values come from the data (snapshots 2023-11-15 to 2025-09-09, data gaps
+# filled with the previous regular price). Rebuild them when the data or the marts change.
 
 # --- current prices ----------------------------------------------------------
 
@@ -72,45 +72,45 @@ mentions_any = ["Zewa", "Danke", "Cottonelle", "Hakle", "Hipp", "ja!"]
 id = "index_all_bavaria_de"
 question = "Um wie viel Prozent sind die Preise in Bayern insgesamt gestiegen?"
 tools = ["get_category_index", "rank_categories_by_inflation"]
-numbers = [[3.33, 103.33]]
+numbers = [[3.34, 103.34]]
 
 [[case]]
 id = "index_top_category_bavaria_en"
 question = "Which category got the most expensive in Bavaria?"
 tools = ["rank_categories_by_inflation", "get_category_index"]
 mentions = ["Süßes"]
-numbers = [[11.83, 111.83]]
+numbers = [[11.87, 111.87]]
 
 [[case]]
 id = "index_top_category_sh_tr"
 question = "Schleswig-Holstein'da en çok zamlanan kategori hangisi?"
 tools = ["rank_categories_by_inflation", "get_category_index"]
 mentions = ["Kaffee"]
-numbers = [[13.16, 113.16]]
+numbers = [[13.36, 113.36]]
 
 [[case]]
 id = "index_coffee_de"
 question = "Wie haben sich die Preise für Kaffee, Tee & Kakao in Bayern entwickelt?"
 tools = ["get_category_index", "rank_categories_by_inflation"]
-numbers = [[10.66, 110.66]]
+numbers = [[10.79, 110.79]]
 
 [[case]]
 id = "index_produce_en"
 question = "Did fruit and vegetables get cheaper in Bavaria?"
 tools = ["get_category_index", "rank_categories_by_inflation"]
-numbers = [[12.76, 87.24]]
+numbers = [[12.38, 87.62]]
 
 [[case]]
 id = "index_regions_tr"
 question = "Hangi bölgede genel fiyat artışı daha fazla?"
 tools = ["get_category_index", "rank_categories_by_inflation"]
-numbers = [[3.33, 103.33], [3.38, 103.38]]
+numbers = [[3.34, 103.34], [3.39, 103.39]]
 
 [[case]]
 id = "index_dairy_sh_de"
 question = "Wie viel teurer wurden Käse, Eier & Molkerei in Schleswig-Holstein?"
 tools = ["get_category_index", "rank_categories_by_inflation"]
-numbers = [[4.29, 104.29]]
+numbers = [[4.4, 104.4]]
 
 # --- rankings ----------------------------------------------------------------
 
@@ -197,6 +197,27 @@ question = "Ağustos 2025'te Bavyera'da ürünlerinin en büyük kısmı indirim
 tools = ["get_sales_stats", "run_sql"]
 mentions = ["Tiefkühlkost"]
 numbers = [13.67]
+
+[[case]]
+id = "promo_most_2024_tr"
+question = "2024'te hangi ürün en çok indirime girdi ve kaç kere?"
+tools = ["rank_promotions"]
+args = { rank_promotions = { mode = "most" } }
+mentions_any = ["Rindergulasch", "Rinderrouladen"]
+numbers = [15]
+
+[[case]]
+id = "promo_deepest_2025_de"
+question = "Welches Produkt hatte 2025 den größten Rabatt?"
+tools = ["rank_promotions"]
+args = { rank_promotions = { mode = "deepest" } }
+numbers = [70.5]
+
+[[case]]
+id = "promo_never_en"
+question = "Which products were never on sale?"
+tools = ["rank_promotions"]
+args = { rank_promotions = { mode = "never" } }
 
 # --- free SQL ----------------------------------------------------------------
 

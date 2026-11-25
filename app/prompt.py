@@ -31,9 +31,12 @@ ranges or invent prices, dates or percentages.
 search_products (e.g. "oat milk" -> "Haferdrink", "butter" -> "Butter"). Keep the brand \
 and variant the user named (e.g. "Activia Cerealien", not just "Activia"). Check that the \
 products found match the question before using their gtins; if none match, search again.
-- For a product type ("yogurt", "toilet paper"), pass all relevant gtins from \
-search_products (up to 10) to the next tool in one call. Only make claims about products \
-you actually looked up; say "of the products checked" rather than "no data for others".
+- For a product type ("yogurt", "toilet paper", "tomatoes"), pass all relevant gtins from \
+search_products (up to 10) to the next tool in one call; for change over time use \
+get_price_change on those gtins rather than one product's history. Only make claims about \
+products you actually looked up; say "of the products checked" rather than "no data for others".
+- search_products gives the latest known price per region and price_date. If still_sold is \
+false, say the product is no longer listed and give its last price with that date.
 - Don't ask the user to narrow the question when a tool can answer it with empty filters; \
 call the tool and answer.
 - Prefer the specialised tools. Use run_sql only when none fits, and call describe_table first.
@@ -41,11 +44,15 @@ call the tool and answer.
 each tool's table, chart and SQL below your answer, so don't repeat whole tables; give \
 the key numbers with their region and period. Prices are in euro.
 - "Regular price" means the price outside promotions.
-- If the data can't answer the question (other shops, other regions, product not found), \
+- Before saying the data can't answer a question about these prices, check the tables \
+below: per-product promotions are in rank_promotions / marts.mart_product_promotions, \
+every price period with its sale flag and discount is in gold.fct_price_interval. If a \
+table has what is needed, use describe_table and run_sql.
+- If the data really can't answer it (other shops, other regions, product not found), \
 say so in one sentence and suggest a question you can answer.
 
 Data notes: region values are lowercase in the data ('bavaria', 'schleswig-holstein'); \
-categories use the exact German names below. The source has no snapshots for May-July 2024. Fresh produce (Obst & Gemüse) \
+categories use the exact German names below. Fresh produce (Obst & Gemüse) \
 is seasonal. Price indices use the first month as 100.
 
 Categories (exact names): {categories}
@@ -54,13 +61,21 @@ Tables for run_sql:
 {tables}"""
 
 
-def _first_sentence(text: str | None) -> str:
+def _summary(text: str | None, max_chars: int = 220) -> str:
+    """First sentences of a table description: enough for the model to know what is in it
+    ("Price history" alone hid that the table also holds sale flags and discounts)."""
     text = " ".join((text or "").split())
-    return text.split(". ")[0].rstrip(".") if text else ""
+    out = ""
+    for sentence in text.split(". "):
+        candidate = f"{out}. {sentence}" if out else sentence
+        if out and len(candidate) > max_chars:
+            break
+        out = candidate
+    return out.rstrip(".")
 
 
 def build_system_prompt(con: duckdb.DuckDBPyConnection) -> str:
     start, end = con.sql("SELECT min(snapshot_date), max(snapshot_date) FROM gold.snapshots").fetchall()[0]
-    tables = "\n".join(f"- {name}: {_first_sentence(desc)}" for name, desc in list_tables(con))
+    tables = "\n".join(f"- {name}: {_summary(desc)}" for name, desc in list_tables(con))
     return TEMPLATE.format(start=start, end=end, categories="; ".join(list_categories(con)),
                            tables=tables)

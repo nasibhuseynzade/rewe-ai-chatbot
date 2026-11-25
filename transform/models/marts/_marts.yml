@@ -16,7 +16,7 @@ models:
       - name: month
         description: First day of the month.
       - name: snapshot_date
-        description: The snapshot the price was taken from (last complete one in the month).
+        description: Reference date of the price (last complete snapshot in the month; last day of the month for May-July 2024, which have no snapshots).
       - name: price
         description: Shelf price on that day (sale price if on_sale).
       - name: regular_price
@@ -35,7 +35,7 @@ models:
       regular prices, unit prices where the pack size is known (so shrinkflation
       counts as a price increase). Use for "how much more expensive did X get".
       Only categories with at least ~50 comparable products per month are
-      included. Note: the source has no data for May-July 2024, and fresh
+      included. Note: fresh
       produce (Obst & Gemüse) is seasonal, so its index moves with the season.
     data_tests:
       - unique_combination:
@@ -118,3 +118,31 @@ models:
         description: Average discount of promotions that started that month, in percent.
       - name: sale_intervals_started
         description: Number of promotions that started that month.
+
+  - name: mart_product_promotions
+    description: >
+      Promotions per product, region and calendar year: how often a product went
+      on sale, for how many days and how deep the discounts were. Use for "which
+      product was on sale most often", "deepest discounts" and "which products were
+      never on sale" (promotions = 0 with many days_listed). Sum over years for the
+      whole period. Discounts are in percent.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [gtin, region, year]
+    columns:
+      - name: year
+        description: Calendar year (2023 has only Nov-Dec, 2025 ends in September).
+      - name: days_listed
+        description: Days in that year the product had a price in that region.
+      - name: days_on_sale
+        description: Of those, days on sale.
+      - name: share_on_sale_pct
+        description: days_on_sale / days_listed in percent.
+      - name: promotions
+        description: Sale episodes that started in the year; consecutive sale intervals count once.
+      - name: max_discount_pct
+        description: Deepest discount of those promotions, in percent off the regular price.
+      - name: avg_discount_pct
+        description: Average discount of those promotions, in percent.
+

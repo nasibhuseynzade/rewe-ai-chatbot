@@ -149,6 +149,10 @@ models:
         description: Price outside promotions. Equals price when on_sale is false. Use it for inflation analysis.
       - name: discount_pct
         description: For on_sale intervals, 1 - price / regular_price (0.20 = 20% off). NULL otherwise.
+      - name: filled_days
+        description: >
+          Days added to this row to bridge a data gap (no snapshot, e.g. 13 April - 23 August
+          2024) with the previous regular price. 0 for most rows.
       - name: pack_size
         description: Pack size text during the interval.
       - name: grammage
