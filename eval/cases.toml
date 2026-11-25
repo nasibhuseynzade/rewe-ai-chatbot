@@ -1,0 +1,246 @@
+# Evaluation set for the assistant. Run: uv run python -m app.evaluate --providers groq
+#
+# Each case has a question and checks; a case passes when all its checks pass.
+#   tools        the assistant must call at least one of these tools
+#   args         expected arguments of the first call of that tool (subset, case-insensitive)
+#   numbers      every number must appear in the answer (small rounding allowed);
+#                a list inside the list means "any of these", e.g. [3.33, 103.33]
+#   mentions     every text must appear in the answer (case and accents ignored)
+#   mentions_any at least one of these texts must appear
+#   no_tools     true: the assistant must answer without calling any tool
+#
+# Expected values come from the data (snapshots 2023-11-15 to 2025-09-09). Rebuild
+# them when the data or the marts change.
+
+# --- current prices ----------------------------------------------------------
+
+[[case]]
+id = "price_nutella_750_de"
+question = "Was kostet Nutella 750g in Bayern?"
+tools = ["search_products"]
+numbers = [5.29]
+
+[[case]]
+id = "price_kerrygold_en"
+question = "How much is Kerrygold Original Irish butter 250g?"
+tools = ["search_products"]
+numbers = [3.99]
+
+[[case]]
+id = "price_milk_tr"
+question = "ja! marka tam yağlı süt (Vollmilch 3,5%) kaç euro?"
+tools = ["search_products"]
+numbers = [1.09]
+
+[[case]]
+id = "price_oatly_en"
+question = "What does Oatly Barista Edition 0.5l cost?"
+tools = ["search_products"]
+numbers = [1.69]
+
+# --- one product's price change ----------------------------------------------
+
+[[case]]
+id = "change_nutella_450_de"
+question = "Wie stark ist der Preis von Nutella 450g gestiegen?"
+tools = ["get_price_change", "get_price_history"]
+numbers = [3.29, 3.79, [15.2, 15]]
+
+[[case]]
+id = "change_activia_tr"
+question = "Activia Cerealien yoğurdun fiyatı ne kadar değişti?"
+tools = ["get_price_change", "get_price_history"]
+numbers = [2.69, 2.79]
+
+[[case]]
+id = "change_kuvertuere_en"
+question = "How much did Dr. Oetker Kuvertüre Vollmilch go up in price?"
+tools = ["get_price_change", "get_price_history"]
+numbers = [1.99, 4.99, 150.75]
+
+[[case]]
+id = "change_toilet_paper_tr"
+question = "Tuvalet kağıdı fiyatları nasıl değişti?"
+tools = ["get_price_change", "get_price_history", "rank_price_changes"]
+mentions_any = ["Zewa", "Danke", "Cottonelle", "Hakle", "Hipp", "ja!"]
+
+# --- category price index ----------------------------------------------------
+
+[[case]]
+id = "index_all_bavaria_de"
+question = "Um wie viel Prozent sind die Preise in Bayern insgesamt gestiegen?"
+tools = ["get_category_index", "rank_categories_by_inflation"]
+numbers = [[3.33, 103.33]]
+
+[[case]]
+id = "index_top_category_bavaria_en"
+question = "Which category got the most expensive in Bavaria?"
+tools = ["rank_categories_by_inflation", "get_category_index"]
+mentions = ["Süßes"]
+numbers = [[11.83, 111.83]]
+
+[[case]]
+id = "index_top_category_sh_tr"
+question = "Schleswig-Holstein'da en çok zamlanan kategori hangisi?"
+tools = ["rank_categories_by_inflation", "get_category_index"]
+mentions = ["Kaffee"]
+numbers = [[13.16, 113.16]]
+
+[[case]]
+id = "index_coffee_de"
+question = "Wie haben sich die Preise für Kaffee, Tee & Kakao in Bayern entwickelt?"
+tools = ["get_category_index", "rank_categories_by_inflation"]
+numbers = [[10.66, 110.66]]
+
+[[case]]
+id = "index_produce_en"
+question = "Did fruit and vegetables get cheaper in Bavaria?"
+tools = ["get_category_index", "rank_categories_by_inflation"]
+numbers = [[12.76, 87.24]]
+
+[[case]]
+id = "index_regions_tr"
+question = "Hangi bölgede genel fiyat artışı daha fazla?"
+tools = ["get_category_index", "rank_categories_by_inflation"]
+numbers = [[3.33, 103.33], [3.38, 103.38]]
+
+[[case]]
+id = "index_dairy_sh_de"
+question = "Wie viel teurer wurden Käse, Eier & Molkerei in Schleswig-Holstein?"
+tools = ["get_category_index", "rank_categories_by_inflation"]
+numbers = [[4.29, 104.29]]
+
+# --- rankings ----------------------------------------------------------------
+
+[[case]]
+id = "rank_increase_en"
+question = "Which products had the biggest price increases?"
+tools = ["rank_price_changes"]
+mentions_any = ["Kuvertüre", "Moon Ranger", "Energizer", "Litschi", "Kaki"]
+
+[[case]]
+id = "rank_decrease_de"
+question = "Welche Produkte sind am stärksten im Preis gefallen?"
+tools = ["rank_price_changes"]
+args = { rank_price_changes = { direction = "decrease" } }
+mentions = ["Del Monte"]
+
+[[case]]
+id = "rank_sweets_tr"
+question = "Süßes & Salziges kategorisinde en çok zamlanan ürünler hangileri?"
+tools = ["rank_price_changes"]
+args = { rank_price_changes = { category = "Süßes & Salziges" } }
+
+# --- shrinkflation -----------------------------------------------------------
+
+[[case]]
+id = "shrink_any_tr"
+question = "shrinkflation örneği var mı hiç rewede"
+tools = ["find_shrinkflation"]
+mentions = ["Niederegger"]
+numbers = [3.4]     # regression: Bavaria's Niederegger price went 2.80 -> 3.40
+
+[[case]]
+id = "shrink_coffee_en"
+question = "Any shrinkflation in coffee and tea?"
+tools = ["find_shrinkflation"]
+args = { find_shrinkflation = { category = "Kaffee, Tee & Kakao" } }
+mentions = ["Teekanne"]
+numbers = [60, 45]
+
+[[case]]
+id = "shrink_somat_de"
+question = "Hat Somat seine Packungen verkleinert?"
+tools = ["find_shrinkflation", "search_products"]
+mentions_any = ["1050", "1.050", "420"]
+
+# --- regions -----------------------------------------------------------------
+
+[[case]]
+id = "region_overall_en"
+question = "Is REWE more expensive in Bavaria or in Schleswig-Holstein?"
+tools = ["compare_regions"]
+numbers = [962, 148]
+
+[[case]]
+id = "region_biggest_gap_tr"
+question = "Bu iki bölge arasında en büyük fiyat farkı hangi üründe?"
+tools = ["compare_regions"]
+mentions = ["Auer"]
+numbers = [1.89, 1.0]
+
+[[case]]
+id = "region_nutella_de"
+question = "Ist Nutella 450g in Bayern billiger als in Schleswig-Holstein?"
+tools = ["compare_regions", "search_products", "get_price_history"]
+numbers = [3.79]
+
+# --- promotions --------------------------------------------------------------
+
+[[case]]
+id = "sales_share_dec24_de"
+question = "Wie hoch war der Anteil an Angeboten im Dezember 2024 in Bayern?"
+tools = ["get_sales_stats"]
+numbers = [5.33]
+
+[[case]]
+id = "sales_discount_dec24_en"
+question = "How big was the average discount in Schleswig-Holstein in December 2024?"
+tools = ["get_sales_stats"]
+numbers = [32.82]
+
+[[case]]
+id = "sales_top_category_tr"
+question = "Ağustos 2025'te Bavyera'da en çok indirimde olan kategori hangisi?"
+tools = ["get_sales_stats", "run_sql"]
+mentions = ["Tiefkühlkost"]
+numbers = [13.67]
+
+# --- free SQL ----------------------------------------------------------------
+
+[[case]]
+id = "sql_product_count_en"
+question = "How many different products are in the dataset?"
+tools = ["run_sql"]
+numbers = [57319]
+
+[[case]]
+id = "sql_pet_products_de"
+question = "Wie viele Produkte gibt es in der Kategorie Tierbedarf?"
+tools = ["run_sql"]
+numbers = [1682]
+
+[[case]]
+id = "sql_top_brand_tr"
+question = "En çok ürünü olan marka hangisi?"
+tools = ["run_sql"]
+mentions = ["ja!"]   # needs the 'None'-brand fix in stg_prices (full dbt build)
+
+# --- limits of the data and of the assistant ---------------------------------
+
+[[case]]
+id = "scope_today_tr"
+question = "Bugün Nutella 450g kaç para?"
+tools = ["search_products", "get_price_history"]
+numbers = [3.79]
+mentions = ["2025"]   # must say the data ends in September 2025
+
+[[case]]
+id = "scope_berlin_en"
+question = "What does Nutella 450g cost in Berlin?"
+mentions_any = ["Bavaria", "Bayern", "Schleswig"]
+
+[[case]]
+id = "scope_lidl_de"
+question = "Ist Butter bei Lidl günstiger als bei REWE?"
+mentions = ["Lidl"]
+
+[[case]]
+id = "scope_poem_en"
+question = "Write me a poem about the sea."
+no_tools = true
+
+[[case]]
+id = "scope_weather_de"
+question = "Wie wird das Wetter morgen in München?"
+no_tools = true

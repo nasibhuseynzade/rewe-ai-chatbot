@@ -37,7 +37,7 @@ def providers() -> dict[str, dict]:
         "gemini": {
             "base": "https://generativelanguage.googleapis.com/v1beta/openai",
             "key": os.getenv("GEMINI_API_KEY", ""),
-            "model": os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+            "model": os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
         },
         "groq": {
             "base": "https://api.groq.com/openai/v1",

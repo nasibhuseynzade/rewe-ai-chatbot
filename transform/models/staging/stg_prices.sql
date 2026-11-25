@@ -18,7 +18,7 @@ typed as (
         region,
         trim(ean)                                                as ean_raw,
         trim(name)                                               as name,
-        nullif(nullif(trim(brand), ''), 'NA')                    as brand,
+        case when trim(brand) in ('', 'NA', 'None', 'null') then null else trim(brand) end as brand,
         try_cast(price as decimal(10, 2))                        as price,
         lower(trim(sale)) = 'true'                               as on_sale,
         trim(category)                                           as category,

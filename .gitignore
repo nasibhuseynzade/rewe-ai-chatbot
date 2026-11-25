@@ -19,3 +19,4 @@ transform/dbt_packages/
 .idea/
 .DS_Store
 transform/.user.yml
+eval/results/*.jsonl

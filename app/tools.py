@@ -252,11 +252,38 @@ def run_sql(con: duckdb.DuckDBPyConnection, sql: str) -> dict:
 # --------------------------------------------------------------------------- #
 # Registry and specs for the LLM
 # --------------------------------------------------------------------------- #
+def describe_table(con: duckdb.DuckDBPyConnection, table: str) -> dict:
+    """Columns, types and descriptions of one gold/marts table (schema on demand)."""
+    schema, _, name = table.strip().lower().partition(".")
+    if not name:
+        schema, name = "", schema
+    sql = """
+        SELECT c.table_schema || '.' || c.table_name AS "table", c.column_name, c.data_type,
+               c.description
+        FROM meta.columns AS c
+        WHERE c.table_name = $name AND ($schema = '' OR c.table_schema = $schema)
+        ORDER BY c.table_schema, c.ordinal_position
+    """
+    params = {"schema": schema, "name": name}
+    data = run_query(con, sql, params, max_rows=200)
+    if not data["row_count"]:
+        tables = [r[0] for r in con.sql(
+            "SELECT table_schema || '.' || table_name FROM meta.tables ORDER BY 1").fetchall()]
+        raise ValueError(f"unknown table '{table}'; available: {', '.join(tables)}")
+    return _result("describe_table", sql, params, data)
+
+
+def list_tables(con: duckdb.DuckDBPyConnection) -> list[tuple[str, str]]:
+    """(schema.table, description) pairs, for the system prompt."""
+    return con.sql("SELECT table_schema || '.' || table_name, description "
+                   "FROM meta.tables ORDER BY 1").fetchall()
+
+
 TOOLS: dict[str, Callable[..., dict]] = {
     f.__name__: f for f in (
         search_products, get_price_history, get_price_change, get_category_index,
         rank_categories_by_inflation, rank_price_changes, find_shrinkflation,
-        compare_regions, get_sales_stats, run_sql,
+        compare_regions, get_sales_stats, describe_table, run_sql,
     )
 }
 
@@ -322,8 +349,13 @@ TOOL_SPECS: list[dict] = [
     _spec("get_sales_stats",
           "Monthly share of products on sale and average discount, for one category or all.",
           {"category": _CATEGORY, "region": _REGION}, []),
+    _spec("describe_table",
+          "Columns and their meaning for one table. Call before writing SQL for run_sql.",
+          {"table": {"type": "string", "description": "e.g. 'gold.fct_price_interval' or 'marts.mart_monthly_prices'."}},
+          ["table"]),
     _spec("run_sql",
-          "Run your own read-only SQL (DuckDB dialect) when no other tool fits. Only SELECT, "
+          "Run your own read-only SQL (DuckDB dialect) when no other tool fits; check columns "
+          "with describe_table first. Only SELECT, "
           "only schema-qualified tables in gold.* and marts.*, at most "
           f"{config.MAX_ROWS} rows.",
           {"sql": {"type": "string", "description": "One SELECT statement."}},
