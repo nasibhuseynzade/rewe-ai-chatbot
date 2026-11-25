@@ -1267,6 +1267,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "sqlglot" },
 ]
 
 [package.metadata]
@@ -1275,6 +1276,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "requests", specifier = ">=2.31" },
+    { name = "sqlglot", specifier = ">=25" },
 ]
 
 [[package]]

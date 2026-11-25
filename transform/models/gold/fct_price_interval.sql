@@ -47,10 +47,10 @@ flagged as (
 numbered as (
     select
         *,
-        sum(starts_interval) over (
+        cast(sum(starts_interval) over (
             partition by gtin, region order by snapshot_seq
             rows between unbounded preceding and current row
-        ) as interval_no
+        ) as integer) as interval_no
     from flagged
 ),
 

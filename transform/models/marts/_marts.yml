@@ -1,0 +1,120 @@
+version: 2
+
+# Pre-computed answers for the chatbot's tools and the insight cards.
+# Descriptions are read by the assistant, so they explain how to use each table.
+
+models:
+  - name: mart_monthly_prices
+    description: >
+      One regular price per product, region and month (the price on the month's
+      last complete snapshot). Use for month-by-month price development.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [gtin, region, month]
+    columns:
+      - name: month
+        description: First day of the month.
+      - name: snapshot_date
+        description: The snapshot the price was taken from (last complete one in the month).
+      - name: price
+        description: Shelf price on that day (sale price if on_sale).
+      - name: regular_price
+        description: Price outside promotions. Use this for price development.
+      - name: pack_size
+        description: Pack size text as printed, e.g. '500g' or '6x1l'.
+      - name: unit_price_status
+        description: How the pack size was verified (see fct_price_interval).
+      - name: regular_unit_price
+        description: regular_price per kg / l / m; NULL if the pack size isn't verified.
+
+  - name: mart_category_price_index
+    description: >
+      Monthly price index per category and region, first month = 100, plus an
+      'All categories' line (the "shopping basket"). Chained Jevons index on
+      regular prices, unit prices where the pack size is known (so shrinkflation
+      counts as a price increase). Use for "how much more expensive did X get".
+      Only categories with at least ~50 comparable products per month are
+      included. Note: the source has no data for May-July 2024, and fresh
+      produce (Obst & Gemüse) is seasonal, so its index moves with the season.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [region, category, month]
+    columns:
+      - name: category
+        description: dim_product.primary_category, or 'All categories'.
+      - name: price_index
+        description: Price level relative to the first month (100). 112.5 = 12.5% more expensive.
+      - name: pct_change_vs_prev_month
+        description: Change against the previous month in percent.
+      - name: products_compared
+        description: Products present in both months that the monthly change is based on.
+
+  - name: mart_product_price_change
+    description: >
+      Per product and region: regular price in the first and the last month it
+      was seen, and the change. Use for "biggest price increases / decreases" and
+      for a single product's overall change. Filter on months_observed to avoid
+      products seen only briefly, and on same_pack_size = true for rankings
+      (otherwise a pack size change or typo looks like a price jump).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [gtin, region]
+    columns:
+      - name: price_change_pct
+        description: Change of the regular shelf price in percent.
+      - name: same_pack_size
+        description: True when the pack size text is the same in the first and last month.
+      - name: unit_price_change_pct
+        description: >
+          Change of the price per kg / l / m; fairer when the pack size changed.
+          NULL if a pack size is unverified or the content changed by more than 2x.
+      - name: months_observed
+        description: Number of months with a price.
+
+  - name: mart_shrinkflation
+    description: >
+      Pack got smaller (same unit) while the regular price stayed the same or
+      went up. One row per event. Only verified pack sizes and content drops
+      between 3% and 50% are included, so source typos are filtered out.
+    columns:
+      - name: changed_on
+        description: First day the smaller pack was seen.
+      - name: content_drop_pct
+        description: How much less content, in percent.
+      - name: unit_price_increase_pct
+        description: Resulting increase of the price per kg / l / m, in percent.
+
+  - name: mart_region_compare
+    description: >
+      Latest regular price of products sold in both regions, side by side.
+      Use for "where is X cheaper" and regional comparisons.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [gtin]
+    columns:
+      - name: diff_eur
+        description: price_bavaria - price_schleswig_holstein.
+      - name: diff_pct
+        description: How much more expensive Bavaria is, in percent (negative = cheaper).
+      - name: more_expensive_in
+        description: "'bavaria', 'schleswig-holstein' or 'same'."
+
+  - name: mart_sales_monthly
+    description: >
+      How common and how deep promotions were per category, region and month,
+      plus an 'All categories' line.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [region, month, category]
+    columns:
+      - name: share_on_sale_pct
+        description: Share of product-days on sale, in percent (partial snapshots excluded).
+      - name: avg_discount_pct
+        description: Average discount of promotions that started that month, in percent.
+      - name: sale_intervals_started
+        description: Number of promotions that started that month.

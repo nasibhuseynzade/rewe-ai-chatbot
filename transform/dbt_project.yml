@@ -35,6 +35,20 @@ vars:
   # with the printed one after reconciliation (0.005 = 0.5%).
   unit_price_conflict_max_share: 0.005
 
+  # Month-to-month price ratios outside [1/x, x] are treated as data errors and
+  # left out of the price index.
+  index_max_monthly_ratio: 3
+
+  # Categories averaging fewer products per monthly comparison are left out of
+  # the index (seasonal and promotional categories are too small to be stable).
+  index_min_products: 50
+
+  # A pack is "smaller" for shrinkflation when its content drops by at least this
+  # share. Drops above the max share are almost always typos in the source
+  # (1000kg instead of 1000g, 1ml instead of 1l) and are left out.
+  shrinkflation_min_content_drop: 0.03
+  shrinkflation_max_content_drop: 0.5
+
 models:
   rewe:
     staging:
@@ -45,4 +59,7 @@ models:
       +materialized: table
     gold:
       +schema: gold
+      +materialized: table
+    marts:
+      +schema: marts
       +materialized: table

@@ -77,6 +77,31 @@ Full data: 970 files, 20.2M rows, 57,320 products (28,097 sold in both regions).
 | `gold.product_category` | product × region × category | category membership over time |
 | `gold.snapshots` | day × region | which days exist, products per day |
 
+## Marts (pre-computed answers)
+
+| table | use |
+|---|---|
+| `marts.mart_monthly_prices` | one regular price per product, region and month |
+| `marts.mart_category_price_index` | monthly price index per category (chained Jevons, first month = 100) |
+| `marts.mart_product_price_change` | first vs. last price per product |
+| `marts.mart_shrinkflation` | smaller pack, same or higher price |
+| `marts.mart_region_compare` | Bavaria vs. Schleswig-Holstein, same product |
+| `marts.mart_sales_monthly` | share of products on sale, average discount |
+
+## Chatbot backend
+
+The assistant never touches the database directly. It calls **tools**
+(`app/tools.py`): fixed, parameterised queries for the common questions, and
+`run_sql` for everything else. All of them run against `data/serving.duckdb`,
+a small copy of `gold` + `marts` with the dbt column descriptions.
+
+Two layers of protection for LLM-written SQL:
+
+1. `app/sql_guard.py` (sqlglot): one SELECT only, only `gold.*` / `marts.*`
+   tables, no file / system / metadata functions, LIMIT enforced.
+2. The connection itself (`app/db.py`): read-only, external access disabled,
+   configuration locked, memory / thread limits, query timeout.
+
 ## Quickstart
 
 Requires [uv](https://docs.astral.sh/uv/).
@@ -94,8 +119,15 @@ uv run python ingest/download.py --start 2025-08-25 --end 2025-09-08
 # 3. Profile the data → explore/profile_report.md
 uv run python explore/profile.py
 
-# 4. Build silver + gold and run the data tests → data/warehouse.duckdb
+# 4. Build silver + gold + marts and run the data tests → data/warehouse.duckdb
 uv run dbt build --project-dir transform --profiles-dir transform
+
+# 5. Build the chatbot's database (gold + marts + docs) → data/serving.duckdb
+uv run python -m app.build_serving
+
+# 6. Try the chatbot's tools without an LLM
+uv run python -m app.cli demo
+uv run python -m app.cli call search_products '{"query": "Butter"}'
 ```
 
 Run all commands from the project root.
@@ -117,7 +149,7 @@ uv run python explore/query.py explore/sql/unit_price_mismatches.sql
 ingest/      download + bronze conversion
 explore/     profiling, query helper, analysis SQL (explore/sql)
 transform/   dbt project (staging, silver, gold + tests)
-app/         API, dashboard, assistant tools     – later
+app/         chatbot backend: serving DB, tools, SQL guard, CLI
 eval/        assistant evaluation questions      – later
 data/        raw / bronze / silver / gold (not in Git)
 ```
@@ -128,8 +160,10 @@ data/        raw / bronze / silver / gold (not in Git)
 - [x] Profiling report
 - [x] Silver: types, grammage parser, data quality tests (dbt)
 - [x] Gold: products, categories, price intervals, snapshots
-- [ ] Dashboard
-- [ ] Assistant: tools, embeddings, evaluation set, model comparison (local vs. API)
+- [x] Marts: price index, price changes, shrinkflation, regions, sales
+- [x] Assistant tools, SQL guard, serving database
+- [ ] Assistant: LLM orchestration, evaluation set, model comparison
+- [ ] Frontend: insight cards + chat with charts
 - [ ] Deployment (Docker, Oracle Cloud VM)
 
 ## Data source

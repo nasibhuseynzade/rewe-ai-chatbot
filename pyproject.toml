@@ -9,6 +9,7 @@ dependencies = [
     "requests>=2.31",
     "python-dotenv>=1.0",
     "dbt-duckdb>=1.9",
+    "sqlglot>=25",
 ]
 
 [tool.uv]
