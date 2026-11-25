@@ -6,9 +6,10 @@ rewe:
       # Relative to the directory dbt is started from (the project root).
       path: "{{ env_var('DUCKDB_PATH', 'data/warehouse.duckdb') }}"
       # Two threads and a memory cap keep laptops with 8 GB RAM out of swap;
-      # DuckDB spills to temp_directory instead. Raise both on bigger machines.
+      # DuckDB spills to data/warehouse.duckdb.tmp instead. Raise both on bigger
+      # machines. (Don't set temp_directory here: dbt re-applies settings on every
+      # connection, and DuckDB refuses to switch it once used.)
       threads: 2
       settings:
         memory_limit: "{{ env_var('DUCKDB_MEMORY_LIMIT', '3GB') }}"
-        temp_directory: "data/duckdb_tmp"
         preserve_insertion_order: false
